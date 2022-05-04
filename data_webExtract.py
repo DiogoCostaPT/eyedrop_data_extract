@@ -134,12 +134,27 @@ web_query_delay = 5
 historic_dir = os.path.join(os.getcwd(), "data/data_autoExtract/historic")
 last_week_dir = os.path.join(os.getcwd(), "data/data_autoExtract/last_week")
 
+
 def extract_snirh_main(PARAMETER_LIST, PERIOD):
     """
     #################################################################
     Process it for mapping in App
     #################################################################
     """
+
+    # Log file name
+    extract_logFile = os.path.join(last_week_dir,
+                                   f"Web_Extract_Log_{PERIOD['tmin'].replace('/','-')}_"
+                                   f"{PERIOD['tmax'].replace('/','-')}.txt")
+
+    # Initiate Log file and write
+    logFile_obj = open(extract_logFile, 'w')
+    logFile_obj.write("\n##################################################\n")
+    logFile_obj.write(f"SNIRH Weekly Web Extraction\n")
+    logFile_obj.write(f"-> Week period: {PERIOD['tmin']} to {PERIOD['tmax']}\n")
+    logFile_obj.write("##################################################\n")
+    logFile_obj.close()
+
     param_name_list = PARAMETER_LIST.keys()
 
     # Load data -> convert to dictionary
@@ -147,12 +162,13 @@ def extract_snirh_main(PARAMETER_LIST, PERIOD):
 
         # Extract data
         snirh_data = snirh_extract({paramNam: PARAMETER_LIST[paramNam]},
-                                   PERIOD)
+                                   PERIOD,
+                                   extract_logFile)
 
         # Move last week's data to historic
         lastweek_dataFiles = os.listdir(last_week_dir)
         for file in lastweek_dataFiles:
-            if file.endswith('.npy'):
+            if (file.endswith('.npy') or file.endswith('.log')):
                 shutil.move(os.path.join(last_week_dir, file), os.path.join(historic_dir, file))
 
         # Save new (last week) data
@@ -161,7 +177,11 @@ def extract_snirh_main(PARAMETER_LIST, PERIOD):
                             snirh_data)
 
 
-def snirh_extract(PARAMETER, PERIOD):
+def snirh_extract(PARAMETER, PERIOD, extract_logFile):
+
+    # Initiate Log file and write
+    logFile_obj = open(extract_logFile, 'a')
+    logFile_obj.write(f"\n-> Parameter: {PARAMETER}\n")
 
     # Get geolocations
     geoStatData = pd.read_csv('data/rede_Qualidadeautomatica.csv', index_col=0, squeeze=True, encoding = "ISO-8859-1").to_dict()
@@ -237,19 +257,28 @@ def snirh_extract(PARAMETER, PERIOD):
 
                     if not df_Station_entry.empty:
                         df_parameter = df_parameter.append(df_Station_entry, ignore_index=True)
-                        print(f"-> (mode_1=SNIRH)(data_exists=TRUE) Data extracted for Station {idata} ({statName}) \
-                        on Parameter {parmName}")
+                        extMsg = f"-> (mode_1=SNIRH)(data_exists=TRUE) Data extracted for Station {idata} ({statName})" \
+                                 f"on Parameter {parmName}"
+                        print(extMsg)
+                        logFile_obj.write(f"{extMsg}\n")
+
                     else:
-                        print(f"-> (mode_1=SNIRH)(data_exists=FLASE) Data extracted for Station {idata} ({statName}) \
-                        on Parameter {parmName}")
+                        extMsg = f"-> (mode_1=SNIRH)(data_exists=FLASE) Data extracted for Station {idata} ({statName}) " \
+                                 f"on Parameter {parmName}"
+                        print(extMsg)
+                        logFile_obj.write(f"{extMsg}\n")
 
                 except:
-                    print(f"-> (mode_1=SNIRH) Problem with Station {idata} ({statName}) on Parameter {parmName}")
+                    extMsg = f"-> (mode_1=SNIRH) Problem with Station {idata} ({statName}) on Parameter {parmName}"
+                    print(extMsg)
+                    logFile_obj.write(f"{extMsg}\n")
 
             snirh_data[parmName] = df_parameter
 
         except:
-            print(f"-> (mode_1=SNIRH) Problem with Parameter {parmName} (general)")
+            extMsg = f"-> (mode_1=SNIRH) Problem with Parameter {parmName} (general)\n"
+            print(extMsg)
+            logFile_obj.write(f"{extMsg}\n")
 
-
+    logFile_obj.close()
     return snirh_data

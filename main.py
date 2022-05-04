@@ -39,10 +39,6 @@ week_secs_step = 60 * 60 * 24 * 7
 
 for it in range(1000):
 
-    # Wait a week
-    time.sleep(week_secs_step)  # Seconds
-    # Last week
-
     lastWeek = datetime.today() - timedelta(days=7)
     lastWeek_str = lastWeek.strftime("%d/%m/%Y")
     # Today
@@ -67,8 +63,9 @@ for it in range(1000):
 
     print("##################################################")
     print(f"Next Extraction on {nextWeek_str})")
-
-
+    # Wait a week
+    time.sleep(week_secs_step)  # Seconds
+    # Last week
 
 
 
