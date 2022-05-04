@@ -42,18 +42,31 @@ for it in range(1000):
     # Wait a week
     time.sleep(week_secs_step)  # Seconds
     # Last week
+
     lastWeek = datetime.today() - timedelta(days=7)
     lastWeek_str = lastWeek.strftime("%d/%m/%Y")
     # Today
     today_str = datetime.today().strftime("%d/%m/%Y")
-    # Set period of extraction
+    # Next week (subsequent extraction)
+    nextWeek = datetime.today() + timedelta(days=7)
+    nextWeek_str = nextWeek.strftime("%d/%m/%Y")
+
+    # Set period of extraction for now
     PERIOD = {
         "tmin": lastWeek_str,
         "tmax": today_str
     }
 
+    print("##################################################")
+    print(f"Extraction # {str(it)})")
+    print(f"-> Week period: {lastWeek_str} to {today_str}")
+    print("##################################################")
+
     # Extract Data
     WextSnirh.extract_snirh_main(PARAMETER_LIST, PERIOD)
+
+    print("##################################################")
+    print(f"Next Extraction on {nextWeek_str})")
 
 
 
