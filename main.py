@@ -1,8 +1,7 @@
 
-import data_webExtract as dwe
-import numpy as np
-from datetime import date
+from datetime import datetime, timedelta
 import data_webExtract as WextSnirh
+import time
 
 PARAMETER_LIST = {
     #"Condutividade (uS/cm) (uS/cm)": 100003231,
@@ -35,15 +34,28 @@ PARAMETER_LIST = {
     "pH médio - campo (6 horas) (-)": 114483378
 }
 
-PERIOD = {
-    "tmin": "01/01/2000",
-    "tmax": date.today().strftime("%d/%m/%Y")
-}
+# Weekly loop automated
+week_secs_step = 60 * 60 * 24 * 7
 
-# Extract Data
-WextSnirh.extract_snirh_main(PARAMETER_LIST, PERIOD)
+for it in range(1000):
 
-# Data process
+    # Wait a week
+    time.sleep(week_secs_step)  # Seconds
+    # Last week
+    lastWeek = datetime.today() - timedelta(days=7)
+    lastWeek_str = lastWeek.strftime("%d/%m/%Y")
+    # Today
+    today_str = datetime.today().strftime("%d/%m/%Y")
+    # Set period of extraction
+    PERIOD = {
+        "tmin": lastWeek_str,
+        "tmax": today_str
+    }
+
+    # Extract Data
+    WextSnirh.extract_snirh_main(PARAMETER_LIST, PERIOD)
+
+
 
 
 

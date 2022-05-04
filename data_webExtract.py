@@ -1,7 +1,10 @@
+
 import numpy as np
 import requests
 import pandas as pd
 import time
+import shutil
+import os
 
 # Exemplot SNIRH
 #https://snirh.apambiente.pt/snirh/_dadosbase/site/paraCSV/dados_csv.php?sites=111717548&pars=898486382&tmin=30/06/2000&tmax=18/04/2022&formato=csv
@@ -125,10 +128,11 @@ STATIONS = {
     #"ÁGUEDA": {"idata": "07P/03", "url_id": XXXXXXXXXXXXXX}
 }
 
-
 # Request delay in seconds (to avoid problems)
-request_delay = 5
+web_query_delay = 5
 
+historic_dir = os.path.join(os.getcwd(), "data/data_autoExtract/historic")
+last_week_dir = os.path.join(os.getcwd(), "data/data_autoExtract/last_week")
 
 def extract_snirh_main(PARAMETER_LIST, PERIOD):
     """
@@ -140,11 +144,21 @@ def extract_snirh_main(PARAMETER_LIST, PERIOD):
 
     # Load data -> convert to dictionary
     for paramNam in param_name_list:
+
         # Extract data
         snirh_data = snirh_extract({paramNam: PARAMETER_LIST[paramNam]},
                                    PERIOD)
-        # Save data to npy
-        np.save(f'../web_app/assets/snirh_data_param{str(PARAMETER_LIST[paramNam])}.npy', snirh_data)
+
+        # Move last week's data to historic
+        lastweek_dataFiles = os.listdir(last_week_dir)
+        for file in lastweek_dataFiles:
+            if file.endswith('.npy'):
+                shutil.move(os.path.join(last_week_dir, file), os.path.join(historic_dir, file))
+
+        # Save new (last week) data
+        np.save(os.path.join(last_week_dir, \
+                             f'snirh_data_param{str(PARAMETER_LIST[paramNam])}_{PERIOD["tmin"].replace("/","-")}_{PERIOD["tmax"].replace("/","-")}.npy'),\
+                            snirh_data)
 
 
 def snirh_extract(PARAMETER, PERIOD):
@@ -203,7 +217,7 @@ def snirh_extract(PARAMETER, PERIOD):
                     # https://snirh.apambiente.pt/snirh/_dadosbase/site/paraCSV/dados_csv.php?sites=111717548&pars=100003231&tmin=04/08/2003&tmax=04/07/2022&formato=csv
                     # https://snirh.apambiente.pt/snirh/_dadosbase/site/paraCSV/dados_csv.php?sites=111717548&pars=100003231&tmin=30/06/2012&tmax=18/04/2022&formato=csv
                     # URL request
-                    time.sleep(request_delay)  # Seconds
+                    time.sleep(web_query_delay)  # Seconds
                     f = requests.get(final_url_query)
 
                     # Processing of data
