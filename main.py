@@ -14,7 +14,7 @@ week_secs_step = 60 * 60 * 24 * 7
 #for it in range(1000):
 for it in range(1):
 
-    lastWeek = datetime.today() - timedelta(days=8000)
+    lastWeek = datetime.today() - timedelta(days=7)
     lastWeek_str = lastWeek.strftime("%d/%m/%Y")
     # Today
     today_str = datetime.today().strftime("%d/%m/%Y")

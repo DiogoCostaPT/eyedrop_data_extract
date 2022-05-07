@@ -25,13 +25,19 @@ def extract_snirh_main(PERIOD, DATABASE):
     #################################################################
     """
 
+    # Move last week's data to historic
+    lastweek_dataFiles = os.listdir(last_week_dir)
+    for file in lastweek_dataFiles:
+        if (file.endswith('.npy') or file.endswith('.log')):
+            shutil.move(os.path.join(last_week_dir, file), os.path.join(historic_dir, file))
+
     # Ingest metadata and server ids
     StatPram_GLOBALmeta = ingest_MetaData.dataIngest(DATABASE)
 
     # Log file name
     extract_logFile = os.path.join(last_week_dir,
                                    f"Web_Extract_Log_{DATABASE}_{PERIOD['tmin'].replace('/','-')}_"
-                                   f"{PERIOD['tmax'].replace('/','-')}.txt")
+                                   f"{PERIOD['tmax'].replace('/','-')}.log")
 
     # Initiate Log file and write
     logFile_obj = open(extract_logFile, 'w')
@@ -50,28 +56,25 @@ def extract_snirh_main(PERIOD, DATABASE):
         parExam = param_name_list.iloc[parI]
 
         # Extract data
-        snirh_data = snirh_extract(StatPram_GLOBALmeta,
+        df_parameter = snirh_extract(StatPram_GLOBALmeta,
+                                   DATABASE,
                                    PERIOD,
                                    extract_logFile,
                                    parExam) # Provide specific parameters to retrieve
 
-        # Move last week's data to historic
-        lastweek_dataFiles = os.listdir(last_week_dir)
-        for file in lastweek_dataFiles:
-            if (file.endswith('.npy') or file.endswith('.log')):
-                shutil.move(os.path.join(last_week_dir, file), os.path.join(historic_dir, file))
-
         # Save new (last week) data
-        np.save(os.path.join(last_week_dir, \
-                             f'snirh_data_{DATABASE}_param{parExam["id_server"]}' \
-                             f'_{PERIOD["tmin"].replace("/","-")}_{PERIOD["tmax"].replace("/","-")}.npy'),\
-                            snirh_data)
+        if not df_parameter.empty:
+            np.save(os.path.join(last_week_dir, \
+                f'snirh_data_{DATABASE}_param{parExam["id_server"]}' \
+                f'_{PERIOD["tmin"].replace("/","-")}_{PERIOD["tmax"].replace("/","-")}.npy'),\
+                df_parameter)
 
 
 def snirh_extract(PStatPram_GLOBALmeta,
-                  PERIOD,
-                  extract_logFile,
-                  PARAMETER):
+                    DATABASE,
+                    PERIOD,
+                    extract_logFile,
+                    PARAMETER):
 
     # Initiate Log file and write
     logFile_obj = open(extract_logFile, 'a')
@@ -98,16 +101,13 @@ def snirh_extract(PStatPram_GLOBALmeta,
     # Query base
     url_base_snirh = "https://snirh.apambiente.pt/snirh/_dadosbase/site/paraCSV/dados_csv.php?"
 
-    # Create dictionary of dataframes, per parameter
-    snirh_data = {}
+    # Creating an empty Dataframe for each parameter
+    df_parameter = pd.DataFrame([])
 
     try:
 
         parmName = PARAMETER["parameter"]
         param_url_id = PARAMETER["id_server"]
-
-        # Creating an empty Dataframe for each parameter
-        df_parameter = pd.DataFrame([])
 
         # Loop over stations
         for stat_i in range(len(stationInfo)):
@@ -120,8 +120,8 @@ def snirh_extract(PStatPram_GLOBALmeta,
                 station_lat = stationInfo[stationInfo.columns[3]][stat_i]
                 station_lon = stationInfo[stationInfo.columns[4]][stat_i]
 
-                station_url_id = int(idServer_station.loc[idServer_station['stat_codigo'] == idata]["id_server"][0])
-                station_name = str(idServer_station.loc[idServer_station['stat_codigo'] == idata]["station_name"][0])
+                station_url_id = int(idServer_station.loc[idServer_station['stat_codigo'] == idata]["id_server"])
+                station_name = idServer_station.loc[idServer_station['stat_codigo'] == idata]["station_name"].values[0]
 
                 # Queries
                 query_station = f"sites={station_url_id}"
@@ -151,27 +151,24 @@ def snirh_extract(PStatPram_GLOBALmeta,
                                                 DFcolumnHeaders[4]: [station_lon for i in range(len(datetime))],
                                                 DFcolumnHeaders[5]: data})
 
-                # Append to master parameter dataframe
 
                 if not df_Station_entry.empty:
                     df_parameter = df_parameter.append(df_Station_entry, ignore_index=True)
-                    extMsg = f"-> (mode_1=SNIRH)(data_exists=TRUE) Data extracted for Station {idata} ({station_name})" \
+                    extMsg = f"-> (mode_1=SNIRH)(db={DATABASE})([{stat_i}/{len(stationInfo)}],data_exists=TRUE) Data extract for Station {idata} ({station_name})" \
                              f"on Parameter {parmName}"
                     print(extMsg)
                     logFile_obj.write(f"{extMsg}\n")
 
                 else:
-                    extMsg = f"-> (mode_1=SNIRH)(data_exists=FLASE) Data extracted for Station {idata} ({station_name}) " \
+                    extMsg = f"-> (mode_1=SNIRH)(db={DATABASE})([{stat_i}/{len(stationInfo)}],data_exists=FLASE) Data extract for Station {idata} ({station_name}) " \
                              f"on Parameter {parmName}"
                     print(extMsg)
                     logFile_obj.write(f"{extMsg}\n")
 
             except:
-                extMsg = f"-> (mode_1=SNIRH) Problem with Station {idata} ({station_name}) on Parameter {parmName}"
+                extMsg = f"-> (mode_1=SNIRH)(db={DATABASE}) Problem with Station {idata} ({station_name}) on Parameter {parmName}"
                 print(extMsg)
                 logFile_obj.write(f"{extMsg}\n")
-
-        snirh_data[parmName] = df_parameter
 
     except:
         extMsg = f"-> (mode_1=SNIRH) Problem with Parameter {parmName} (general)\n"
@@ -180,4 +177,4 @@ def snirh_extract(PStatPram_GLOBALmeta,
 
     logFile_obj.close()
 
-    return snirh_data
+    return df_parameter
