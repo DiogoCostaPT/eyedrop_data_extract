@@ -47,11 +47,13 @@ def extract_snirh_main(PERIOD, DATABASE):
     # Load data -> convert to dictionary
     for parI in range(len(param_name_list)):
 
+        parExam = param_name_list.iloc[parI]
+
         # Extract data
         snirh_data = snirh_extract(StatPram_GLOBALmeta,
                                    PERIOD,
                                    extract_logFile,
-                                   param_name_list.iloc[parI]) # Provide specific parameters to retrieve
+                                   parExam) # Provide specific parameters to retrieve
 
         # Move last week's data to historic
         lastweek_dataFiles = os.listdir(last_week_dir)
@@ -61,7 +63,7 @@ def extract_snirh_main(PERIOD, DATABASE):
 
         # Save new (last week) data
         np.save(os.path.join(last_week_dir, \
-                             f'snirh_data_param{param_name_list["parameter"].iloc[parI]}' \
+                             f'snirh_data_{DATABASE}_param{parExam["id_server"]}' \
                              f'_{PERIOD["tmin"].replace("/","-")}_{PERIOD["tmax"].replace("/","-")}.npy'),\
                             snirh_data)
 
@@ -153,13 +155,13 @@ def snirh_extract(PStatPram_GLOBALmeta,
 
                 if not df_Station_entry.empty:
                     df_parameter = df_parameter.append(df_Station_entry, ignore_index=True)
-                    extMsg = f"-> (mode_1=SNIRH)(data_exists=TRUE) Data extracted for Station {idata} ({statName})" \
+                    extMsg = f"-> (mode_1=SNIRH)(data_exists=TRUE) Data extracted for Station {idata} ({station_name})" \
                              f"on Parameter {parmName}"
                     print(extMsg)
                     logFile_obj.write(f"{extMsg}\n")
 
                 else:
-                    extMsg = f"-> (mode_1=SNIRH)(data_exists=FLASE) Data extracted for Station {idata} ({statName}) " \
+                    extMsg = f"-> (mode_1=SNIRH)(data_exists=FLASE) Data extracted for Station {idata} ({station_name}) " \
                              f"on Parameter {parmName}"
                     print(extMsg)
                     logFile_obj.write(f"{extMsg}\n")
