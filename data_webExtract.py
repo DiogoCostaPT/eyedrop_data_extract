@@ -3,8 +3,8 @@ import numpy as np
 import requests
 import pandas as pd
 import time
-import shutil
 import os
+import sys
 import ingest_MetaData
 
 # Exemplot SNIRH
@@ -14,22 +14,13 @@ import ingest_MetaData
 # Request delay in seconds (to avoid problems)
 web_query_delay = 3
 
-historic_dir = os.path.join(os.getcwd(), "data/data_autoExtract/historic")
-last_week_dir = os.path.join(os.getcwd(), "data/data_autoExtract/last_week")
 
-
-def extract_snirh_main(PERIOD, DATABASE):
+def extract_snirh_main(PERIOD, DATABASE, last_week_dir):
     """
     #################################################################
     Process it for mapping in App
     #################################################################
     """
-
-    # Move last week's data to historic
-    lastweek_dataFiles = os.listdir(last_week_dir)
-    for file in lastweek_dataFiles:
-        if (file.endswith('.npy') or file.endswith('.log')):
-            shutil.move(os.path.join(last_week_dir, file), os.path.join(historic_dir, file))
 
     # Ingest metadata and server ids
     StatPram_GLOBALmeta = ingest_MetaData.dataIngest(DATABASE)
@@ -39,46 +30,78 @@ def extract_snirh_main(PERIOD, DATABASE):
                                    f"Web_Extract_Log_{DATABASE}_{PERIOD['tmin'].replace('/','-')}_"
                                    f"{PERIOD['tmax'].replace('/','-')}.log")
 
-    # Initiate Log file and write
-    logFile_obj = open(extract_logFile, 'w')
-    logFile_obj.write("\n##################################################\n")
-    logFile_obj.write(f"SNIRH Weekly Web Extraction\n")
-    logFile_obj.write(f"-> Week period: {PERIOD['tmin']} to {PERIOD['tmax']}\n")
-    logFile_obj.write("##################################################\n")
-    logFile_obj.close()
+    reRun_flag = False
 
-    #param_name_list = PARAMETER_LIST.keys()
+    if not os.path.exists(extract_logFile):
+
+        # Initiate Log file and write
+        logFile_obj = open(extract_logFile, 'w')
+        logFile_obj.write("\n##################################################\n")
+        logFile_obj.write(f"SNIRH Weekly Web Extraction\n")
+        logFile_obj.write(f"-> Week period: {PERIOD['tmin']} to {PERIOD['tmax']}\n")
+        logFile_obj.write("##################################################\n")
+        logFile_obj.close()
+
+    else:
+        logFile_obj = open(extract_logFile, 'a')
+        logFile_obj.write("\n##################################################\n")
+        logFile_obj.write("*** Restarted after process was interrupted ***\n")
+        logFile_obj.write("##################################################\n")
+        logFile_obj.close()
+        reRun_flag = True
+
     param_name_list = StatPram_GLOBALmeta["idServer_param"]
 
     # Load data -> convert to dictionary
     for parI in range(len(param_name_list)):
 
         parExam = param_name_list.iloc[parI]
+        parExam_idServer = parExam["id_server"]
+
+        # Check if parameter has been examined
+        with open(extract_logFile) as f:
+            match_parInt = f"ParameterExtractComplete_{parExam_idServer}" in f.read().splitlines()
+
+        # If parameter is in log and extraction process has been completed, then if yes we
+        # can skip it
+        if match_parInt:
+            continue
+
+        SaveResPath = os.path.join(last_week_dir, \
+                f'snirh_data_{DATABASE}_param{parExam_idServer}' \
+                f'_{PERIOD["tmin"].replace("/","-")}_{PERIOD["tmax"].replace("/","-")}.npy')
 
         # Extract data
         df_parameter = snirh_extract(StatPram_GLOBALmeta,
-                                   DATABASE,
-                                   PERIOD,
-                                   extract_logFile,
-                                   parExam) # Provide specific parameters to retrieve
+                            DATABASE,
+                            PERIOD,
+                            extract_logFile,
+                            parExam,
+                            parI,
+                            len(param_name_list))
 
         # Save new (last week) data
         if not df_parameter.empty:
-            np.save(os.path.join(last_week_dir, \
-                f'snirh_data_{DATABASE}_param{parExam["id_server"]}' \
-                f'_{PERIOD["tmin"].replace("/","-")}_{PERIOD["tmax"].replace("/","-")}.npy'),\
-                df_parameter)
+            np.save(SaveResPath, df_parameter)
+
+        logFile_obj = open(extract_logFile, 'a')
+        logFile_obj.write(f"ParameterExtractComplete_{parExam_idServer}")
+        logFile_obj.close()
 
 
 def snirh_extract(PStatPram_GLOBALmeta,
                     DATABASE,
                     PERIOD,
                     extract_logFile,
-                    PARAMETER):
+                    PARAMETER,
+                    parI,
+                    paramNum):
+
+
 
     # Initiate Log file and write
     logFile_obj = open(extract_logFile, 'a')
-    logFile_obj.write(f"\n-> Parameter: {PARAMETER}\n")
+    logFile_obj.write(f"\n-> Parameter: {int(PARAMETER['id_server'])}\n")
 
     # Break down infomation in different DB
     stationInfo = PStatPram_GLOBALmeta["stationInfo"]
@@ -154,24 +177,24 @@ def snirh_extract(PStatPram_GLOBALmeta,
 
                 if not df_Station_entry.empty:
                     df_parameter = df_parameter.append(df_Station_entry, ignore_index=True)
-                    extMsg = f"-> (mode_1=SNIRH)(db={DATABASE})([{stat_i}/{len(stationInfo)}],data_exists=TRUE) Data extract for Station {idata} ({station_name})" \
+                    extMsg = f"-> (mode_1=SNIRH)(db={DATABASE})(param=[{parI}/{paramNum}],stat=[{stat_i}/{len(stationInfo)}])[data_exists=TRUE) Data extract for Station {idata} ({station_name})" \
                              f"on Parameter {parmName}"
                     print(extMsg)
                     logFile_obj.write(f"{extMsg}\n")
 
                 else:
-                    extMsg = f"-> (mode_1=SNIRH)(db={DATABASE})([{stat_i}/{len(stationInfo)}],data_exists=FLASE) Data extract for Station {idata} ({station_name}) " \
+                    extMsg = f"-> (mode_1=SNIRH)(db={DATABASE})(param=[{parI}/{paramNum}],stat=[{stat_i}/{len(stationInfo)}])[data_exists=FALSE] Data extract for Station {idata} ({station_name}) " \
                              f"on Parameter {parmName}"
                     print(extMsg)
                     logFile_obj.write(f"{extMsg}\n")
 
             except:
-                extMsg = f"-> (mode_1=SNIRH)(db={DATABASE}) Problem with Station {idata} ({station_name}) on Parameter {parmName}"
+                extMsg = f"-> (mode_1=SNIRH)(db={DATABASE})(param=[{parI}/{paramNum}],stat=[{stat_i}/{len(stationInfo)}]) Problem with Station {idata} ({station_name}) on Parameter {parmName}"
                 print(extMsg)
                 logFile_obj.write(f"{extMsg}\n")
 
     except:
-        extMsg = f"-> (mode_1=SNIRH) Problem with Parameter {parmName} (general)\n"
+        extMsg = f"-> (mode_1=SNIRH)(db={DATABASE}) Problem with Parameter {parmName} (general)\n"
         print(extMsg)
         logFile_obj.write(f"{extMsg}\n")
 
